@@ -9,3 +9,4 @@ Etape 1 : Build le container docker :
 Etape 2 : Run le projet dans le container :
 - sur clion via la config "projet-cuda"
 - sinon vous devez vous connectez en ssh, créer un build via le cmake file, push le build sur le container, puis make et run 
+- ssh test@localost ( mdp : test ), vous pouvez push le contenu de projet_cuda dans /tmp sur docker, puis dans /tmp vous créer un dossier build et vous faite cmake ../. dedans, ça vous génère un makefile et tout normalement
