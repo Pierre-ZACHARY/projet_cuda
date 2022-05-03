@@ -1,2 +1,4 @@
 /cmake-build-debug-docker/
 /opencv2/
+/output/cpu/*
+/output/gpu/*
