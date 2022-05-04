@@ -76,6 +76,8 @@ void execKernelCpuSeq(Mat* image, vector< unsigned char >* output, vector<float>
 
 void runCpu(Mat* image, ImageFormat format, const String& outputPath ){
 
+    cout<<"CPU VERSION ...\n";
+
     int nbChannel = (int) format;
     vector< unsigned char > g( image->cols * image->rows * nbChannel );
     Mat m_out( image->rows, image->cols, image->type(), g.data() );
@@ -118,17 +120,22 @@ __global__ void gpuConvolution(unsigned char * input, unsigned char * output, fl
     __syncthreads(); // il faut que tous les threads du bloc attendent que kernel_shared soit chargé
 
 
-    float local_sum = 0;
+    // on pourrait souhaité mettre les autres variables en shared mem : kernel_size, start_index, rows, cols, car on y accède souvent dans l'algo
 
-    int kernel_row_size =(int) sqrtf((float) kernel_size);
-    float kernel_sum = 0;
+    // on a besoin de la somme des valeurs de la matrice ( et de la taille d'une ligne de la matrice )
+    int kernel_row_size =(int) sqrtf((float) kernel_size); // mettre en shared mem ?
+    float kernel_sum = 0; // mettre en shared mem ?
     for(int ik = 0; ik<kernel_size; ik++){
-        kernel_sum += kernel_shared[ik];
+        kernel_sum += abs(kernel_shared[ik]);
     }
 
+
+    // Calcul de la somme des multiplications avec la matrice kernel
     int ligne_actuelle = (((start_index + id)/nb_color_channels))/cols;
     int colonne_actuelle =  (((start_index+ id)/nb_color_channels) )%cols;
     int chan_actuel =  id%nb_color_channels;
+    float local_sum = 0;
+
 
     for(int ik = 0; ik<kernel_size; ik++){
         int ligne = ik/kernel_row_size - kernel_row_size/2;
@@ -145,10 +152,7 @@ __global__ void gpuConvolution(unsigned char * input, unsigned char * output, fl
 
         local_sum += ((kernel_shared[ik]/kernel_sum) * ((float) other_pixel));
     }
-
-
     output[(ligne_actuelle)*cols*nb_color_channels + (colonne_actuelle)*nb_color_channels + chan_actuel] = (unsigned char) ((int) local_sum);
-
 }
 
 void handle_error(cudaError_t cudaStatus, const String& info){
@@ -271,7 +275,7 @@ void execKernelGpu(Mat* image, vector< unsigned char >* output, vector<float>* k
     handle_error(cudaEventSynchronize( stop ), "cudaEventSynchronize( stop )");
     float duration;
     handle_error(cudaEventElapsedTime( &duration, start, stop ), "cudaEventElapsedTime( &duration, start, stop )");
-    std::cout << "time=" << duration << std::endl;
+    std::cout <<"Image Size: "<<image->cols*image->channels()*image->rows<<", Kernel Size: "<< kernel->size()<< ", Time: " << duration << "ms" << std::endl;
     handle_error(cudaEventDestroy(start), "cudaEventDestroy(start)");
     handle_error(cudaEventDestroy(stop), "cudaEventDestroy(stop)");
 
@@ -279,6 +283,9 @@ void execKernelGpu(Mat* image, vector< unsigned char >* output, vector<float>* k
 }
 
 void runGpu(Mat* image, ImageFormat format, const String& outputPath){
+
+    cout<<"GPU VERSION ...\n";
+
     int nbChannel = (int) format;
     vector< unsigned char > g( image->cols * image->rows * nbChannel );
     Mat m_out( image->rows, image->cols, image->type(), g.data() );
@@ -289,11 +296,23 @@ void runGpu(Mat* image, ImageFormat format, const String& outputPath){
     execKernelGpu(image, &g, &blur3x3, format, 4);
     imwrite( outputPath+"gpu_blur3x3.jpg", m_out );
 
+    vector<float> blur9x9 = vector<float>(9*9, 1.0f);
+    execKernelGpu(image, &g, &blur9x9, format, 4);
+    imwrite( outputPath+"gpu_blur9x9.jpg", m_out );
 
     vector<float> blur15x15 = vector<float>(15*15, 1.0f);
     execKernelGpu(image, &g, &blur15x15, format, 4);
     imwrite( outputPath+"gpu_blur15x15.jpg", m_out );
 
+    cout<<"Edge Detection ...\n";
+
+    execKernelGpu(image, &g, &edge_detection_kernel, format, 4);
+    imwrite( outputPath+"gpu_edge_detection.jpg", m_out );
+
+    cout<<"Gaussian Blur ...\n";
+
+    execKernelGpu(image, &g, &gaussian_blur, format, 4);
+    imwrite( outputPath+"gpu_gaussian_blur.jpg", m_out );
 }
 
 
