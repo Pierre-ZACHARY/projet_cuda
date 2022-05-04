@@ -7,7 +7,7 @@ using namespace cv;
 using namespace std;
 using namespace chrono;
 
-enum class ImageFormat : int{ Grayscale = 1, RGB = 3, RGBA = 4 };
+enum class ImageFormat : int{ Grayscale = 1, RGB = 3, RGBA = 4 }; // TODO supprimer ImageFormat: ça sert à rien c'est contenu dans image->channels() déjà
 
 vector<float> edge_detection_kernel = {-1.0f, -1.0f, -1.0f,
                                        -1.0f,  8.0f, -1.0f,
@@ -120,7 +120,7 @@ __global__ void gpuConvolution(unsigned char * input, unsigned char * output, fl
     __syncthreads(); // il faut que tous les threads du bloc attendent que kernel_shared soit chargé
 
 
-    // on pourrait souhaité mettre les autres variables en shared mem : kernel_size, start_index, rows, cols, car on y accède souvent dans l'algo
+    // TODO on pourrait souhaité mettre les autres variables en shared mem : kernel_size, start_index, rows, cols, car on y accède souvent dans l'algo et elles sont communes à tous les threads
 
     // on a besoin de la somme des valeurs de la matrice ( et de la taille d'une ligne de la matrice )
     int kernel_row_size =(int) sqrtf((float) kernel_size); // mettre en shared mem ?
@@ -134,8 +134,7 @@ __global__ void gpuConvolution(unsigned char * input, unsigned char * output, fl
     int ligne_actuelle = (((start_index + id)/nb_color_channels))/cols;
     int colonne_actuelle =  (((start_index+ id)/nb_color_channels) )%cols;
     int chan_actuel =  id%nb_color_channels;
-    float local_sum = 0;
-
+    float local_sum = 0; // TODO on pourrait aussi mettre ça en shared mem car on y accede souvent, par contre faudrai la stocké sous la forme d'une unsigned char ( sur 1 octet ) pour gagner de la place par rapport au float qui en prend 4
 
     for(int ik = 0; ik<kernel_size; ik++){
         int ligne = ik/kernel_row_size - kernel_row_size/2;
@@ -148,8 +147,6 @@ __global__ void gpuConvolution(unsigned char * input, unsigned char * output, fl
         else{
             other_pixel = input[(ligne_actuelle+ligne)*cols*nb_color_channels + (colonne_actuelle+col)*nb_color_channels + chan_actuel];
         }
-
-
         local_sum += ((kernel_shared[ik]/kernel_sum) * ((float) other_pixel));
     }
     output[(ligne_actuelle)*cols*nb_color_channels + (colonne_actuelle)*nb_color_channels + chan_actuel] = (unsigned char) ((int) local_sum);
@@ -169,6 +166,7 @@ void execKernelGpu(Mat* image, vector< unsigned char >* output, vector<float>* k
     handle_error(cudaEventCreate( &stop ), "cudaEventCreate( &stop )");
     handle_error(cudaEventRecord( start ), "cudaEventRecord( start )");
 
+    // TODO on voudrait déduire le nombre de streams selon les specs du gpu ? jsp si c'est possible
     // Streams declaration.
     cudaStream_t streams[ nb_stream ];
 
@@ -241,6 +239,7 @@ void execKernelGpu(Mat* image, vector< unsigned char >* output, vector<float>* k
                          streams[ s ] ), "cudaMemcpyAsync Host_Kernel -> Device_Kernel for stream "+to_string(s)); // tous les streams ont besoin du kernel complet
 
 
+        // TODO on voudrait exec le kernel avec une grille 2d de block 2d, avec un nombre de threads qui dépend de la taille d'un warp, etc
         //dim3 block( 32, 4 ); // on va faire des block de la taille d'un warp * 4
         //dim3 grid( ( cols - 1) / block.x + 1 , ( rows - 1 ) / block.y + 1 ); // il nous faut une grille de block qui couvre tous les pixels gérer par le stream actuel
 
