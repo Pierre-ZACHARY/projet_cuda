@@ -123,7 +123,7 @@ __global__ void gpuConvolution(unsigned char * input, unsigned char * output, fl
     int kernel_row_size =(int) sqrtf((float) kernel_size);
     float kernel_sum = 0;
     for(int ik = 0; ik<kernel_size; ik++){
-        kernel_sum += kernel[ik];
+        kernel_sum += kernel_shared[ik];
     }
 
     int ligne_actuelle = (((start_index + id)/nb_color_channels))/cols;
@@ -131,8 +131,8 @@ __global__ void gpuConvolution(unsigned char * input, unsigned char * output, fl
     int chan_actuel =  id%nb_color_channels;
 
     for(int ik = 0; ik<kernel_size; ik++){
-        int ligne = ik/kernel_row_size - kernel_size/2;
-        int col = ik%kernel_row_size - kernel_size/2;
+        int ligne = ik/kernel_row_size - kernel_row_size/2;
+        int col = ik%kernel_row_size - kernel_row_size/2;
         unsigned char other_pixel;
         // On doit vérifier que l'autre pixel se trouve bien dans l'image, sinon on lui donne une valeur par défaut
         if(ligne_actuelle+ligne<0 || ligne_actuelle+ligne>=rows || colonne_actuelle+col<0 || colonne_actuelle+col>=cols){
@@ -304,6 +304,7 @@ int main()
     Mat m_in = imread("../in.jpg", IMREAD_UNCHANGED );
     //runCpu(&m_in, ImageFormat::RGB, "../output/cpu/");
     runGpu(&m_in, ImageFormat::RGB, "../output/gpu/");
+
 
     return 0;
 }
