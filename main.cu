@@ -7,8 +7,6 @@ using namespace cv;
 using namespace std;
 using namespace chrono;
 
-enum class ImageFormat : int{ Grayscale = 1, RGB = 3, RGBA = 4 }; // TODO supprimer ImageFormat: ça sert à rien c'est contenu dans image->channels() déjà
-
 vector<float> edge_detection_kernel = {-1.0f, -1.0f, -1.0f,
                                        -1.0f,  8.0f, -1.0f,
                                        -1.0f, -1.0f, -1.0f};
@@ -22,9 +20,9 @@ vector<float> gaussian_blur = {0, 0,  0,  5,  0, 0,0,
                                0, 5, 18, 32, 18, 5,0,
                                0, 0,  0,  5,  0, 0,0};
 
-void execKernelCpuSeq(Mat* image, vector< unsigned char >* output, vector<float>* kernel, ImageFormat format){
+void execKernelCpuSeq(Mat* image, vector< unsigned char >* output, vector<float>* kernel){
 
-    int nbChannel = (int) format;
+    int nbChannel = (int) image->channels();
     assert(kernel->size()%2 == 1);
 
     int kernelRowSize = sqrt(kernel->size());
@@ -74,46 +72,44 @@ void execKernelCpuSeq(Mat* image, vector< unsigned char >* output, vector<float>
     cout << "Temps : "<<elapsed_seconds.count()<<"s\n";
 }
 
-void runCpu(Mat* image, ImageFormat format, const String& outputPath ){
+void runCpu(Mat* image, const String& outputPath ){
 
     cout<<"CPU VERSION ...\n";
 
-    int nbChannel = (int) format;
+    int nbChannel = (int) image->channels();
     vector< unsigned char > g( image->cols * image->rows * nbChannel );
     Mat m_out( image->rows, image->cols, image->type(), g.data() );
 
     cout<<"BLUR ...\n";
 
     vector<float> blur3x3 = vector<float>(3*3, 1.0f);
-    execKernelCpuSeq(image, &g, &blur3x3, format);
+    execKernelCpuSeq(image, &g, &blur3x3);
     imwrite( outputPath+"cpu_blur3x3.jpg", m_out );
 
     vector<float> blur9x9 = vector<float>(9*9, 1.0f);
-    execKernelCpuSeq(image, &g, &blur9x9, format);
+    execKernelCpuSeq(image, &g, &blur9x9);
     imwrite( outputPath+"cpu_blur9x9.jpg", m_out );
 
     vector<float> blur15x15 = vector<float>(15*15, 1.0f);
-    execKernelCpuSeq(image, &g, &blur15x15, format);
+    execKernelCpuSeq(image, &g, &blur15x15);
     imwrite( outputPath+"cpu_blur15x15.jpg", m_out );
 
 
     cout<<"Edge Detection ...\n";
 
-    execKernelCpuSeq(image, &g, &edge_detection_kernel, format);
+    execKernelCpuSeq(image, &g, &edge_detection_kernel);
     imwrite( outputPath+"cpu_edge_detection.jpg", m_out );
 
     cout<<"Gaussian Blur ...\n";
 
-    execKernelCpuSeq(image, &g, &gaussian_blur, format);
+    execKernelCpuSeq(image, &g, &gaussian_blur);
     imwrite( outputPath+"cpu_gaussian_blur.jpg", m_out );
 
 }
 
-
 __global__ void gpuConvolution(unsigned char * input, unsigned char * output, float * kernel, size_t kernel_size, size_t nb_color_channels, size_t start_index, size_t rows, size_t cols ){
     extern __shared__ float kernel_shared[];
     auto id = blockIdx.x * blockDim.x + threadIdx.x;
-
     if(threadIdx.x<kernel_size){ // ça implique qu'il doit y avoir au moins autant de thread par block que de case dans le kernel
         kernel_shared[threadIdx.x] = kernel[threadIdx.x]; // on charge en mémoire shared l'ensemble de la matrice kernel, ça évite que chaque thread aient besoin d'autant d'appels en mémoire global qu'il y a d'éléments dans kernel
     }
@@ -158,7 +154,7 @@ void handle_error(cudaError_t cudaStatus, const String& info){
     }
 }
 
-void execKernelGpu(Mat* image, vector< unsigned char >* output, vector<float>* kernel, ImageFormat format, unsigned int nb_stream){
+void execKernelGpu(Mat* image, vector< unsigned char >* output, vector<float>* kernel, unsigned int nb_stream){
 
     // Setup event
     cudaEvent_t start, stop;
@@ -177,7 +173,7 @@ void execKernelGpu(Mat* image, vector< unsigned char >* output, vector<float>* k
     unsigned char * device_output;
     float * host_kernel;
     float * device_kernel;
-    int nbChannel = (int) format;
+    int nbChannel = (int) image->channels();
     size_t const input_size = nbChannel * image->cols * image->rows;
     size_t const input_sizeb = input_size * sizeof( unsigned char ); // pour une image rgb de 1920*1200 pixel, on a 1920*1200*3* sizeof(unsigned char)=1 octets
     size_t const kernel_sizeb = kernel->size() * sizeof(float);
@@ -281,48 +277,55 @@ void execKernelGpu(Mat* image, vector< unsigned char >* output, vector<float>* k
 
 }
 
-void runGpu(Mat* image, ImageFormat format, const String& outputPath){
+void runGpu(Mat* image, const String& outputPath){
 
     cout<<"GPU VERSION ...\n";
 
-    int nbChannel = (int) format;
+    int nbChannel = (int) image->channels();
     vector< unsigned char > g( image->cols * image->rows * nbChannel );
     Mat m_out( image->rows, image->cols, image->type(), g.data() );
 
     cout<<"BLUR ...\n";
 
     vector<float> blur3x3 = vector<float>(3*3, 1.0f);
-    execKernelGpu(image, &g, &blur3x3, format, 4);
+    execKernelGpu(image, &g, &blur3x3, 4);
     imwrite( outputPath+"gpu_blur3x3.jpg", m_out );
 
     vector<float> blur9x9 = vector<float>(9*9, 1.0f);
-    execKernelGpu(image, &g, &blur9x9, format, 4);
+    execKernelGpu(image, &g, &blur9x9, 4);
     imwrite( outputPath+"gpu_blur9x9.jpg", m_out );
 
     vector<float> blur15x15 = vector<float>(15*15, 1.0f);
-    execKernelGpu(image, &g, &blur15x15, format, 4);
+    execKernelGpu(image, &g, &blur15x15, 4);
     imwrite( outputPath+"gpu_blur15x15.jpg", m_out );
 
     cout<<"Edge Detection ...\n";
 
-    execKernelGpu(image, &g, &edge_detection_kernel, format, 4);
+    execKernelGpu(image, &g, &edge_detection_kernel, 4);
     imwrite( outputPath+"gpu_edge_detection.jpg", m_out );
 
     cout<<"Gaussian Blur ...\n";
 
-    execKernelGpu(image, &g, &gaussian_blur, format, 4);
+    execKernelGpu(image, &g, &gaussian_blur, 4);
     imwrite( outputPath+"gpu_gaussian_blur.jpg", m_out );
 }
 
-
-
 int main()
 {
+    int count = 0;
+    cudaGetDeviceCount(&count);
+    cout << count << endl;
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, 0);
+    cout << "maxBlocksPerMultiProcessor " << prop.maxBlocksPerMultiProcessor << endl;
+    cout << "maxThreadsPerBlock " << prop.maxThreadsPerBlock << endl;
+    cout << "warpSize " << prop.warpSize << endl;
+    cout << "multiProcessorCount " << prop.multiProcessorCount << endl;
+    cout << "maxThreadsPerMultiProcessor " << prop.maxThreadsPerMultiProcessor << endl;
     cout << "Première image ...\n";
     Mat m_in = imread("../in.jpg", IMREAD_UNCHANGED );
-    //runCpu(&m_in, ImageFormat::RGB, "../output/cpu/");
-    runGpu(&m_in, ImageFormat::RGB, "../output/gpu/");
-
+    runCpu(&m_in, "../output/cpu/");
+    runGpu(&m_in, "../output/gpu/");
 
     return 0;
 }

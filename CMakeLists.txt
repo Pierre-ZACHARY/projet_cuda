@@ -11,5 +11,5 @@ target_link_libraries( projet_cuda ${OpenCV_LIBS} )
 
 set_target_properties(projet_cuda PROPERTIES
         CUDA_SEPARABLE_COMPILATION ON)
-
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr -gencode arch=compute_50,code=sm_50")
 
