@@ -115,9 +115,6 @@ __global__ void gpuConvolution(unsigned char * input, unsigned char * output, fl
     }
     __syncthreads(); // il faut que tous les threads du bloc attendent que kernel_shared soit chargé
 
-
-    // TODO on pourrait souhaité mettre les autres variables en shared mem : kernel_size, start_index, rows, cols, car on y accède souvent dans l'algo et elles sont communes à tous les threads
-
     // on a besoin de la somme des valeurs de la matrice ( et de la taille d'une ligne de la matrice )
     int kernel_row_size =(int) sqrtf((float) kernel_size); // mettre en shared mem ?
     float kernel_sum = 0; // mettre en shared mem ?
@@ -146,6 +143,58 @@ __global__ void gpuConvolution(unsigned char * input, unsigned char * output, fl
         local_sum += ((kernel_shared[ik]/kernel_sum) * ((float) other_pixel));
     }
     output[(ligne_actuelle)*cols*nb_color_channels + (colonne_actuelle)*nb_color_channels + chan_actuel] = (unsigned char) ((int) local_sum);
+}
+
+// N'EST PAS RENTABLE, ON PERD DU TEMPS PAR RAPPORT AU KERNEL AU DESSUS
+__global__ void gpuConvolutionSharedVars(unsigned char * input, unsigned char * output, float * kernel, size_t kernel_size, size_t nb_color_channels, size_t start_index, size_t rows, size_t cols ){
+    extern __shared__ float kernel_shared[];
+    __shared__ size_t kernel_size_shared;
+    __shared__ size_t start_index_shared;
+    __shared__ size_t rows_shared;
+    __shared__ size_t cols_shared;
+    __shared__ size_t nb_color_channels_shared;
+
+    kernel_size_shared = kernel_size;
+    start_index_shared = start_index;
+    rows_shared = rows;
+    cols_shared = cols;
+    nb_color_channels_shared = nb_color_channels;
+
+    auto id = blockIdx.x * blockDim.x + threadIdx.x;
+    if(threadIdx.x<kernel_size){ // ça implique qu'il doit y avoir au moins autant de thread par block que de case dans le kernel
+        kernel_shared[threadIdx.x] = kernel[threadIdx.x]; // on charge en mémoire shared l'ensemble de la matrice kernel, ça évite que chaque thread aient besoin d'autant d'appels en mémoire global qu'il y a d'éléments dans kernel
+    }
+
+    __syncthreads(); // il faut que tous les threads du bloc attendent que kernel_shared soit chargé
+
+    // on a besoin de la somme des valeurs de la matrice ( et de la taille d'une ligne de la matrice )
+    int kernel_row_size =(int) sqrtf((float) kernel_size_shared); // mettre en shared mem ?
+    float kernel_sum = 0; // mettre en shared mem ?
+    for(int ik = 0; ik<kernel_size_shared; ik++){
+        kernel_sum += abs(kernel_shared[ik]);
+    }
+
+
+    // Calcul de la somme des multiplications avec la matrice kernel
+    int ligne_actuelle = (((start_index_shared + id)/nb_color_channels_shared))/cols_shared;
+    int colonne_actuelle =  (((start_index_shared + id)/nb_color_channels_shared) )%cols_shared;
+    int chan_actuel =  id%nb_color_channels_shared;
+    float local_sum = 0; // TODO on pourrait aussi mettre ça en shared mem car on y accede souvent, par contre faudrai la stocké sous la forme d'une unsigned char ( sur 1 octet ) pour gagner de la place par rapport au float qui en prend 4
+
+    for(int ik = 0; ik<kernel_size_shared; ik++){
+        int ligne = ik/kernel_row_size - kernel_row_size/2;
+        int col = ik%kernel_row_size - kernel_row_size/2;
+        unsigned char other_pixel;
+        // On doit vérifier que l'autre pixel se trouve bien dans l'image, sinon on lui donne une valeur par défaut
+        if(ligne_actuelle+ligne<0 || ligne_actuelle+ligne>=rows_shared || colonne_actuelle+col<0 || colonne_actuelle+col>=cols_shared){
+            other_pixel = (unsigned char) 127;
+        }
+        else{
+            other_pixel = input[(ligne_actuelle+ligne)*cols_shared*nb_color_channels_shared + (colonne_actuelle+col)*nb_color_channels_shared + chan_actuel];
+        }
+        local_sum += ((kernel_shared[ik]/kernel_sum) * ((float) other_pixel));
+    }
+    output[(ligne_actuelle)*cols_shared*nb_color_channels_shared + (colonne_actuelle)*nb_color_channels_shared + chan_actuel] = (unsigned char) ((int) local_sum);
 }
 
 void handle_error(cudaError_t cudaStatus, const String& info){
@@ -241,6 +290,7 @@ void execKernelGpu(Mat* image, vector< unsigned char >* output, vector<float>* k
 
         // chaque calcul est indépendant donc on a pas besoin de ghosts, il faut juste envoyer une ou plusieurs lignes supplémentaires pour que les dernier thread aient accès aux pixels non gérer
         gpuConvolution<<< ((input_size/1024))/nb_stream+1, 1024, kernel->size() * sizeof(float), streams[ s ] >>>( device_input, device_output, device_kernel, kernel->size(), nbChannel, s*(input_size/nb_stream), image->rows, image->cols);
+        //MOINS OPTI : gpuConvolutionSharedVars<<< ((input_size/1024))/nb_stream+1, 1024, kernel->size() * sizeof(float) + 5 * sizeof(size_t), streams[ s ] >>>( device_input, device_output, device_kernel, kernel->size(), nbChannel, s*(input_size/nb_stream), image->rows, image->cols);
         handle_error(cudaGetLastError(), "gpuConvolution for stream : "+ to_string(s));
 
 
@@ -324,7 +374,7 @@ int main()
     cout << "maxThreadsPerMultiProcessor " << prop.maxThreadsPerMultiProcessor << endl;
     cout << "Première image ...\n";
     Mat m_in = imread("../in.jpg", IMREAD_UNCHANGED );
-    runCpu(&m_in, "../output/cpu/");
+    //runCpu(&m_in, "../output/cpu/");
     runGpu(&m_in, "../output/gpu/");
 
     return 0;
