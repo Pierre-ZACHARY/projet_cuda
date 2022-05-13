@@ -1,8 +1,8 @@
 Rendu du projet CUDA
 
 Membres du groupe : 
-Pierre ZACHARY 2183251
-Eoghann VEAUTE 
+- Pierre ZACHARY 2183251
+- Eoghann VEAUTE 2181406
 
 
 Consignes générales :
