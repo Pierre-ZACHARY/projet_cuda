@@ -1,5 +1,7 @@
 # Rendu du projet CUDA
 
+Google doc du rapport : https://docs.google.com/document/d/1ukH70_w8A-QE2dQcMrHfLOHhYfNQSnHFTRaDcpOrpPg/edit?usp=sharing
+
 ## Membres du groupe : 
 - Pierre ZACHARY 2183251
 - Eoghann VEAUTE 2181406
