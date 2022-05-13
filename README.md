@@ -5,6 +5,15 @@
 - Eoghann VEAUTE 2181406
 
 
+## /!\ Comment Executer le projet :
+- Pour créer le projet, vous devez générer un build, cela ce fait automatiquement avec clion, sinon, créer un dossier "build" au même niveau que main.cu
+- Dans ce dossier build, lancer la commande "ccmake ../." 
+- cela devrait vous générer un makefile
+- vous n'avez plus qu'a make ( et à remake à chaque changement de main.cu )
+- /!\ Les lectures / écritures d'image dans main.cu sont relative à ce dossier build : cela veut dire que l'on va chercher les images dans le dossier parent à build ( donc au même niveau que main.cu ), pour cette raison, le dossier build doit se trouver au même niveau que les images et que le dossier output
+
+
+
 ## Consignes générales :
 - [x] Gestion des erreurs 
 - [x] Utilisation des événements CUDA
