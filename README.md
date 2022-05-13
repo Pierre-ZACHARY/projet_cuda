@@ -20,7 +20,7 @@
 - [x] Utilisation de std Chrono
 - [x] Utilisation de différentes images
 - [x] Analyse des différentes versions
-- [x] Tester différentes taille de grille 2D 
+- [ ] Tester différentes taille de grille 2D 
 - [ ] Le projet comporte un Makefile et a été testé sur les machines de la fac 
   - Notre projet comporte un CMakeFile, qui génère un makefile via la commande ccmake ( demande d'avoir Cmake d'installer sur la machine ) 
   - Nous n'avons pas pu tester le projet sur une machine de la fac ( voir le paragraphe ci-dessous ) 
