@@ -109,7 +109,9 @@ void runCpu(Mat* image, const String& outputPath ){
 
 __global__ void gpuConvolution(unsigned char * input, unsigned char * output, float * kernel, size_t kernel_size, size_t nb_color_channels, size_t start_index, size_t rows, size_t cols ){
     extern __shared__ float kernel_shared[];
-    auto id =  blockIdx.x * blockDim.x * blockDim.y + threadIdx.y * blockDim.x + threadIdx.x;
+    //auto id =  blockIdx.x * blockDim.x * blockDim.y + threadIdx.y * blockDim.x + threadIdx.x;
+    int blockId = blockIdx.x + blockIdx.y * gridDim.x;
+    int id = blockId * (blockDim.x * blockDim.y) + (threadIdx.y * blockDim.x) + threadIdx.x;
 
     if(threadIdx.y * blockDim.x + threadIdx.x <kernel_size){ // ça implique qu'il doit y avoir au moins autant de thread par block que de case dans le kernel
         kernel_shared[threadIdx.y * blockDim.x + threadIdx.x] = kernel[threadIdx.y * blockDim.x + threadIdx.x]; // on charge en mémoire shared l'ensemble de la matrice kernel, ça évite que chaque thread aient besoin d'autant d'appels en mémoire global qu'il y a d'éléments dans kernel
@@ -289,12 +291,19 @@ void execKernelGpu(Mat* image, vector< unsigned char >* output, vector<float>* k
         // TODO on voudrait exec le kernel avec une grille 2d de block 2d, avec un nombre de threads qui dépend de la taille d'un warp, etc
         //dim3 block( 32, 4 ); // on va faire des block de la taille d'un warp * 4
         //dim3 grid( ( cols - 1) / block.x + 1 , ( rows - 1 ) / block.y + 1 ); // il nous faut une grille de block qui couvre tous les pixels gérer par le stream actuel
-        dim3 t( 32, 32 );
-        dim3 b( ( (image->cols - 1) / t.x + 1)/nb_stream+1 , (( image->rows - 1 ) / t.y + 1) /nb_stream+1 );
+        dim3 t( 32, 31 );
+        dim3 b( sqrt(((input_size/1024))/nb_stream+1)+1 , sqrt(((input_size/1024))/nb_stream+1)+1 );
+        //dim3 b(211, 8);
+        cout << "sqrt : " << sqrt(((input_size/1024))/nb_stream+1) << endl;
+        cout << "valeur de base : " << ((input_size/1024))/nb_stream+1 << endl;
         // chaque calcul est indépendant donc on a pas besoin de ghosts, il faut juste envoyer une ou plusieurs lignes supplémentaires pour que les dernier thread aient accès aux pixels non gérer
+
+        //1D
         //gpuConvolution<<< ((input_size/1024))/nb_stream+1, 1024, kernel->size() * sizeof(float), streams[ s ] >>>( device_input, device_output, device_kernel, kernel->size(), nbChannel, s*(input_size/nb_stream), image->rows, image->cols);
-        gpuConvolution<<< ((input_size/1024))/nb_stream+1, t, kernel->size() * sizeof(float), streams[ s ] >>>( device_input, device_output, device_kernel, kernel->size(), nbChannel, s*(input_size/nb_stream), image->rows, image->cols);
         //MOINS OPTI : gpuConvolutionSharedVars<<< ((input_size/1024))/nb_stream+1, 1024, kernel->size() * sizeof(float) + 5 * sizeof(size_t), streams[ s ] >>>( device_input, device_output, device_kernel, kernel->size(), nbChannel, s*(input_size/nb_stream), image->rows, image->cols);
+
+        //2D
+        gpuConvolution<<< b, t, kernel->size() * sizeof(float), streams[ s ] >>>( device_input, device_output, device_kernel, kernel->size(), nbChannel, s*(input_size/nb_stream), image->rows, image->cols);
         handle_error(cudaGetLastError(), "gpuConvolution for stream : "+ to_string(s));
 
 
