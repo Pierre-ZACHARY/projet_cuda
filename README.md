@@ -5,13 +5,22 @@
 - Eoghann VEAUTE 2181406
 
 
+## /!\ Comment Executer le projet :
+- Pour créer le projet, vous devez générer un build, cela ce fait automatiquement avec clion, sinon, créer un dossier "build" au même niveau que main.cu
+- Dans ce dossier build, lancer la commande "ccmake ../." 
+- cela devrait vous générer un makefile
+- vous n'avez plus qu'a make ( et à remake à chaque changement de main.cu )
+- /!\ Les lectures / écritures d'image dans main.cu sont relative à ce dossier build : cela veut dire que l'on va chercher les images dans le dossier parent à build ( donc au même niveau que main.cu ), pour cette raison, le dossier build doit se trouver au même niveau que les images et que le dossier output
+
+
+
 ## Consignes générales :
 - [x] Gestion des erreurs 
 - [x] Utilisation des événements CUDA
 - [x] Utilisation de std Chrono
 - [x] Utilisation de différentes images
 - [x] Analyse des différentes versions
-- [x] Tester différentes taille de grille 2D 
+- [ ] Tester différentes taille de grille 2D 
 - [ ] Le projet comporte un Makefile et a été testé sur les machines de la fac 
   - Notre projet comporte un CMakeFile, qui génère un makefile via la commande ccmake ( demande d'avoir Cmake d'installer sur la machine ) 
   - Nous n'avons pas pu tester le projet sur une machine de la fac ( voir le paragraphe ci-dessous ) 
