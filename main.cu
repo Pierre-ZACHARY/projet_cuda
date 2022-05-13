@@ -340,9 +340,11 @@ void execKernelGpu(Mat* image, vector< unsigned char >* output, vector<float>* k
 
 }
 
-void runGpu(Mat* image, const String& outputPath){
 
-    cout<<"GPU VERSION ...\n";
+
+void runGpuWithStream(Mat* image, const String& outputPath, int nbStream){
+
+    cout<<"GPU VERSION with "<<nbStream<<" stream(s)...\n";
 
     int nbChannel = (int) image->channels();
     vector< unsigned char > g( image->cols * image->rows * nbChannel );
@@ -351,26 +353,33 @@ void runGpu(Mat* image, const String& outputPath){
     cout<<"BLUR ...\n";
 
     vector<float> blur3x3 = vector<float>(3*3, 1.0f);
-    execKernelGpu(image, &g, &blur3x3, 4);
+    execKernelGpu(image, &g, &blur3x3, nbStream);
     imwrite( outputPath+"gpu_blur3x3.jpg", m_out );
 
     vector<float> blur9x9 = vector<float>(9*9, 1.0f);
-    execKernelGpu(image, &g, &blur9x9, 4);
+    execKernelGpu(image, &g, &blur9x9, nbStream);
     imwrite( outputPath+"gpu_blur9x9.jpg", m_out );
 
     vector<float> blur15x15 = vector<float>(15*15, 1.0f);
-    execKernelGpu(image, &g, &blur15x15, 4);
+    execKernelGpu(image, &g, &blur15x15, nbStream);
     imwrite( outputPath+"gpu_blur15x15.jpg", m_out );
 
     cout<<"Edge Detection ...\n";
 
-    execKernelGpu(image, &g, &edge_detection_kernel, 4);
+    execKernelGpu(image, &g, &edge_detection_kernel, nbStream);
     imwrite( outputPath+"gpu_edge_detection.jpg", m_out );
 
     cout<<"Gaussian Blur ...\n";
 
-    execKernelGpu(image, &g, &gaussian_blur, 4);
+    execKernelGpu(image, &g, &gaussian_blur, nbStream);
     imwrite( outputPath+"gpu_gaussian_blur.jpg", m_out );
+}
+
+void runGpu(Mat* image, const String& outputPath){
+  runGpuWithStream(image,  outputPath, 1);
+  runGpuWithStream(image,  outputPath, 4);
+  runGpuWithStream(image,  outputPath, 16);
+  runGpuWithStream(image,  outputPath, 32);
 }
 
 int main()
@@ -387,8 +396,18 @@ int main()
     cout << "maxThreadsPerMultiProcessor " << prop.maxThreadsPerMultiProcessor << endl;
     cout << "Première image ...\n";
     Mat m_in = imread("../in.jpg", IMREAD_UNCHANGED );
-    //runCpu(&m_in, "../output/cpu/");
-    runGpu(&m_in, "../output/gpu/");
+    runCpu(&m_in, "../output/cpu/in");
+    runGpu(&m_in, "../output/gpu/in");
+  
+    cout << "Deuxième image ...\n";
+    m_in = imread("../in2.jpg", IMREAD_UNCHANGED );
+    runCpu(&m_in, "../output/cpu/in2");
+    runGpu(&m_in, "../output/gpu/in2");
+  
+    cout << "Troisième image ...\n";
+    m_in = imread("../in3.jpg", IMREAD_UNCHANGED );
+    runCpu(&m_in, "../output/cpu/in3");
+    runGpu(&m_in, "../output/gpu/in3");
 
     return 0;
 }
